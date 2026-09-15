@@ -1,145 +1,158 @@
-const API_BASE = "http://127.0.0.1:8000";
-
-let eventosData = [];
-let personaSeleccionada = null;
+const API_URL = "http://localhost:8000"; // Cambiar por la IP pública al desplegar en EC2
 
 document.addEventListener("DOMContentLoaded", () => {
-  cargarEventos();
-
-  document.getElementById("btn-buscar-dni").addEventListener("click", buscarPersona);
-  document.getElementById("select-evento").addEventListener("change", calcularTotal);
-  document.getElementById("cantidad").addEventListener("input", calcularTotal);
-  document.getElementById("purchase-form").addEventListener("submit", procesarCompra);
-  document.getElementById("btn-cerrar-modal").addEventListener("click", () => {
-    document.getElementById("modal-ticket").classList.add("hidden");
-  });
+    if (document.getElementById("lista-eventos")) {
+        cargarCatalogo();
+    } else if (document.getElementById("detalle-evento")) {
+        cargarDetalle();
+    }
 });
 
-// 1. Cargar catálogo de eventos desde la API
-async function cargarEventos() {
-  try {
-    const res = await fetch(`${API_BASE}/eventos`);
-    eventosData = await res.json();
+// 1. Cargar catálogo en index.html
+async function cargarCatalogo() {
+    try {
+        const res = await fetch(`${API_URL}/eventos`);
+        const eventos = await res.json();
+        const contenedor = document.getElementById("lista-eventos");
 
-    const grid = document.getElementById("events-grid");
-    const select = document.getElementById("select-evento");
-
-    grid.innerHTML = "";
-    select.innerHTML = '<option value="">-- Elige un evento --</option>';
-
-    eventosData.forEach(ev => {
-      // Tarjeta en catálogo
-      const card = document.createElement("div");
-      card.className = "event-card";
-      card.innerHTML = `
-        <img src="${ev.banner_url}" alt="${ev.titulo}">
-        <div class="event-card-body">
-          <h4>${ev.titulo}</h4>
-          <p>${ev.descripcion || ev.lugar || ''}</p>
-          <div class="precio">S/ ${ev.precio.toFixed(2)}</div>
-        </div>
-      `;
-      grid.appendChild(card);
-
-      // Opción en Select
-      const opt = document.createElement("option");
-      opt.value = ev.id;
-      opt.textContent = `${ev.titulo} - S/ ${ev.precio.toFixed(2)}`;
-      select.appendChild(opt);
-    });
-  } catch (err) {
-    document.getElementById("events-grid").innerHTML = "<p>Error al conectar con la API de eventos.</p>";
-  }
+        contenedor.innerHTML = eventos.map(e => `
+            <div class="card-evento" onclick="irADetalle(${e.id})">
+                <img src="${e.banner_url}" alt="${e.titulo}">
+                <div class="card-body">
+                    <span class="badge">${e.categoria}</span>
+                    <h3>${e.titulo}</h3>
+                    <p>📍 ${e.lugar}</p>
+                    <p>📅 ${e.fecha}</p>
+                    <p class="precio">Desde S/ ${e.precio.toFixed(2)}</p>
+                </div>
+            </div>
+        `).join("");
+    } catch (err) {
+        console.error("Error al cargar eventos:", err);
+    }
 }
 
-// 2. Autocompletar datos por DNI (Mock RENIEC)
-async function buscarPersona() {
-  const dni = document.getElementById("dni").value.trim();
-  const inputNombre = document.getElementById("comprador-nombre");
+function irADetalle(id) {
+    window.location.href = `detalle.html?id=${id}`;
+}
 
-  if (dni.length !== 8) {
-    alert("El DNI debe tener exactamente 8 dígitos.");
-    return;
-  }
+// 2. Cargar vista detallada y formulario de compra en detalle.html
+async function cargarDetalle() {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
 
-  try {
-    const res = await fetch(`${API_BASE}/persona/${dni}`);
-    if (!res.ok) {
-      alert("DNI no encontrado en la base de datos.");
-      inputNombre.value = "";
-      personaSeleccionada = null;
-      return;
+    if (!id) {
+        window.location.href = "index.html";
+        return;
     }
 
-    const data = await res.json();
-    console.log("Respuesta de la API de persona:", data); // Para inspeccionar la estructura real
+    try {
+        const res = await fetch(`${API_URL}/eventos/${id}`);
+        if (!res.ok) throw new Error("Evento no encontrado");
+        
+        const evento = await res.json();
+        const contenedor = document.getElementById("detalle-evento");
 
-    // Extraer persona si viene dentro de un objeto 'comprador' o directamente en la raíz
-    personaSeleccionada = data.comprador || data;
+        contenedor.innerHTML = `
+            <div class="detalle-col">
+                <img src="${evento.banner_url}" alt="${evento.titulo}" class="banner-detalle">
+                <h2>${evento.titulo}</h2>
+                <p><strong>Categoría:</strong> ${evento.categoria}</p>
+                <p><strong>Lugar:</strong> ${evento.lugar}</p>
+                <p><strong>Fecha y Hora:</strong> ${evento.fecha}</p>
+                <p class="precio-destacado">Precio unitario: S/ ${evento.precio.toFixed(2)}</p>
+            </div>
 
-    // Obtener el nombre soportando 'nombre', 'nombres', 'apellido' o 'apellidos'
-    const nombre = personaSeleccionada.nombres || personaSeleccionada.nombre || "";
-    const apellido = personaSeleccionada.apellidos || personaSeleccionada.apellido || "";
+            <div class="detalle-col form-col">
+                <h3>Comprar Entradas</h3>
+                <form id="form-compra" onsubmit="procesarCompra(event, ${evento.id}, ${evento.precio})">
+                    <label>DNI Comprador:</label>
+                    <div class="input-inline">
+                        <input type="text" id="dni" maxlength="8" required placeholder="Ingresa tu DNI">
+                        <button type="button" onclick="buscarDNI()">Validar</button>
+                    </div>
 
-    const nombreCompleto = `${nombre} ${apellido}`.trim();
-    inputNombre.value = nombreCompleto || "Nombre no disponible";
+                    <label>Nombre Completo:</label>
+                    <input type="text" id="nombre-comprador" readonly placeholder="Validación automática">
 
-  } catch (err) {
-    console.error(err);
-    alert("Error al conectar con la API para validar el DNI.");
-  }
+                    <label>Correo Electrónico:</label>
+                    <input type="email" id="correo" required placeholder="tu@correo.com">
+
+                    <label>Cantidad:</label>
+                    <input type="number" id="cantidad" min="1" max="10" value="1" onchange="actualizarTotal(${evento.precio})" required>
+
+                    <div class="resumen-total">
+                        <strong>Total a pagar: S/ <span id="total-pagar">${evento.precio.toFixed(2)}</span></strong>
+                    </div>
+
+                    <button type="submit" class="btn-comprar">Confirmar Compra</button>
+                </form>
+            </div>
+        `;
+    } catch (err) {
+        document.getElementById("detalle-evento").innerHTML = `<p>Error al cargar el detalle del evento.</p>`;
+    }
 }
 
-// 3. Re-calcular precio total en vivo
-function calcularTotal() {
-  const evId = parseInt(document.getElementById("select-evento").value);
-  const cant = parseInt(document.getElementById("cantidad").value) || 0;
-  const ev = eventosData.find(e => e.id === evId);
-
-  const total = ev ? ev.precio * cant : 0;
-  document.getElementById("total-precio").textContent = total.toFixed(2);
+function actualizarTotal(precioUnitario) {
+    const cant = parseInt(document.getElementById("cantidad").value) || 1;
+    document.getElementById("total-pagar").textContent = (cant * precioUnitario).toFixed(2);
 }
 
-// 4. Enviar compra a la API POST /comprar
-async function procesarCompra(e) {
-  e.preventDefault();
+async function buscarDNI() {
+    const dni = document.getElementById("dni").value;
+    const inputNombre = document.getElementById("nombre-comprador");
 
-  const dni = document.getElementById("dni").value.trim();
-  const id_evento = parseInt(document.getElementById("select-evento").value);
-  const correo = document.getElementById("correo").value.trim();
-  const cantidad = parseInt(document.getElementById("cantidad").value);
+    if (dni.length !== 8) {
+        alert("El DNI debe tener 8 dígitos.");
+        return;
+    }
 
-  if (!personaSeleccionada || personaSeleccionada.dni !== dni) {
-    alert("Por favor verifica el DNI primero.");
-    return;
-  }
+    try {
+        const res = await fetch(`${API_URL}/persona/${dni}`);
+        if (!res.ok) throw new Error("DNI no encontrado");
+        const data = await res.json();
+        inputNombre.value = `${data.nombres} ${data.apellido_paterno} ${data.apellido_materno}`;
+    } catch (err) {
+        alert("DNI no encontrado en el padrón.");
+        inputNombre.value = "";
+    }
+}
 
-  const payload = { dni_comprador: dni, id_evento, correo, cantidad };
+async function procesarCompra(e, idEvento, precioUnitario) {
+    e.preventDefault();
+    const dni = document.getElementById("dni").value;
+    const correo = document.getElementById("correo").value;
+    const cantidad = parseInt(document.getElementById("cantidad").value);
 
-  try {
-    const res = await fetch(`${API_BASE}/comprar`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    try {
+        const res = await fetch(`${API_URL}/comprar`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                dni_comprador: dni,
+                id_evento: idEvento,
+                correo: correo,
+                cantidad: cantidad
+            })
+        });
 
-    if (!res.ok) throw new Error("Error procesando compra.");
+        if (!res.ok) throw new Error("Error procesando la orden");
 
-    const data = await res.json();
+        const orden = await res.json();
+        mostrarModalExito(orden.codigo_ticket, orden.monto_total);
+    } catch (err) {
+        alert("Hubo un error al registrar tu compra.");
+    }
+}
 
-    // Mostrar modal con ticket generado
-    document.getElementById("ticket-codigo").textContent = data.codigo_ticket;
-    document.getElementById("ticket-evento").textContent = document.getElementById("select-evento").selectedOptions[0].text;
-    document.getElementById("ticket-comprador").textContent = `${personaSeleccionada.nombres} ${personaSeleccionada.apellidos}`;
-    document.getElementById("ticket-monto").textContent = data.monto_total.toFixed(2);
-    document.getElementById("modal-ticket").classList.remove("hidden");
+function mostrarModalExito(codigo, monto) {
+    document.getElementById("modal-codigo").textContent = codigo;
+    document.getElementById("modal-monto").textContent = Number(monto).toFixed(2);
+    document.getElementById("modal-confirmacion").classList.remove("hidden");
+}
 
-    // Limpiar formulario
-    document.getElementById("purchase-form").reset();
-    document.getElementById("total-precio").textContent = "0.00";
-    personaSeleccionada = null;
-
-  } catch (err) {
-    alert("Hubo un problema al emitir la entrada.");
-  }
+function cerrarModalEIrAInicio() {
+    document.getElementById("modal-confirmacion").classList.add("hidden");
+    window.location.href = "index.html";
 }
