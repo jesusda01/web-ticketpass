@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TicketPass - Venta de Entradas</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header class="navbar">
+    <h1>TicketPass</h1>
+  </header>
+
+  <main class="container">
+    <!-- Carrusel / Galería de Eventos -->
+    <section class="events-section">
+      <h2>Eventos Disponibles</h2>
+      <div id="events-grid" class="events-grid">
+        <p>Cargando eventos...</p>
+      </div>
+    </section>
+
+    <!-- Formulario de Compra -->
+    <section class="checkout-section">
+      <h2>Comprar Entradas</h2>
+      <form id="purchase-form">
+        
+        <div class="form-group">
+          <label for="select-evento">Selecciona un Evento:</label>
+          <select id="select-evento" required>
+            <option value="">-- Elige un evento --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="dni">DNI Comprador:</label>
+          <div class="input-with-btn">
+            <input type="text" id="dni" maxlength="8" placeholder="Ingrese 8 dígitos" required>
+            <button type="button" id="btn-buscar-dni">Verificar DNI</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="comprador-nombre">Nombre Completo:</label>
+          <input type="text" id="comprador-nombre" readonly placeholder="Se autocompletará al verificar DNI">
+        </div>
+
+        <div class="form-group">
+          <label for="correo">Correo Electrónico:</label>
+          <input type="email" id="correo" placeholder="ejemplo@correo.com" required>
+        </div>
+
+        <div class="form-group">
+          <label for="cantidad">Cantidad de Entradas:</label>
+          <input type="number" id="cantidad" min="1" max="10" value="1" required>
+        </div>
+
+        <div class="form-summary">
+          <p>Total a Pagar: <strong>S/ <span id="total-precio">0.00</span></strong></p>
+        </div>
+
+        <button type="submit" id="btn-comprar" class="btn-submit">Procesar Compra</button>
+      </form>
+    </section>
+  </main>
+
+  <!-- Modal de Confirmación -->
+  <div id="modal-ticket" class="modal hidden">
+    <div class="modal-content">
+      <h3>¡Compra Exitosa! 🎉</h3>
+      <p>Tu entrada ha sido generada correctamente.</p>
+      <div class="ticket-card">
+        <p><strong>Código de Ticket:</strong> <span id="ticket-codigo"></span></p>
+        <p><strong>Evento:</strong> <span id="ticket-evento"></span></p>
+        <p><strong>Comprador:</strong> <span id="ticket-comprador"></span></p>
+        <p><strong>Monto Total:</strong> S/ <span id="ticket-monto"></span></p>
+      </div>
+      <p class="email-notice">📧 Se ha enviado un correo de confirmación a tu bandeja.</p>
+      <button id="btn-cerrar-modal">Aceptar y Continuar</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
